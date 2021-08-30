@@ -27,6 +27,14 @@ type handler struct {
 	t *template.Template
 }
 
+type HandlerOption func(h *handler)
+
+func WithTemplate(t *template.Template) HandlerOption {
+	return func(h *handler) {
+		h.t = t
+	}
+}
+
 var storyTmpl = `
 <!DOCTYPE html>
 <html>
@@ -95,11 +103,12 @@ func init() {
 	tpl = template.Must(template.New("").Parse(storyTmpl))
 }
 
-func NewHandler(s Story, t *template.Template) http.Handler {
-	if t == nil {
-		t = tpl
+func NewHandler(s Story, opts ...HandlerOption) http.Handler {
+	h := handler{s, tpl}
+	for _, opt := range opts {
+		opt(&h)
 	}
-	return handler{s, t}
+	return h
 }
 
 func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +119,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path = path[1:]
 
 	if chapter, ok := h.s[path]; ok {
-		err := tpl.Execute(w, chapter)
+		err := h.t.Execute(w, chapter)
 		if err != nil {
 			log.Printf("%v", err)
 			http.Error(w, "Something went wrong...", http.StatusInternalServerError)
